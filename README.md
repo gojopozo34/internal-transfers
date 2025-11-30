@@ -2,9 +2,67 @@
 
 A production-ready Go REST API for managing bank account transfers with ACID compliance and row-level locking to ensure data consistency.
 
-## Overview
+**Repository**: [GitHub Link - Please Update]
+
+## Quick Start
+
+```powershell
+# 1. Clone repository
+git clone <your-repo-url>
+cd internal-transfers
+
+# 2. Install dependencies
+go mod tidy
+
+# 3. Setup database (see Setup section below)
+
+# 4. Start server
+go run ./cmd/server/main.go
+
+# 5. Run tests (in another terminal)
+& ".\test_simple.ps1"
+```
 
 This application implements a secure, transactional system for transferring money between accounts. It uses PostgreSQL with serializable transaction isolation and row-level locking (FOR UPDATE) to prevent race conditions and ensure data integrity even under concurrent load.
+
+## Assumptions
+
+This project makes the following assumptions about the deployment environment and usage:
+
+### Environment Assumptions
+1. **Operating System**: Windows 10/11, Linux, or macOS with standard shells
+2. **PostgreSQL Version**: PostgreSQL 18.x or later (tested with 18.1)
+3. **Go Version**: Go 1.24.1 or later
+4. **Network**: Localhost deployment (127.0.0.1:8080) for development; production requires HTTPS
+5. **Database Access**: Local PostgreSQL instance accessible via TCP/IP
+
+### Security Assumptions
+1. **No Authentication**: API endpoints are unauthenticated (add OAuth2/API keys for production)
+2. **No Authorization**: All users have full access to all accounts (implement RBAC for production)
+3. **Plain TCP Connection**: Database connection uses no encryption (enable SSL/TLS for production)
+4. **Single Server**: No load balancing or horizontal scaling (use connection pooling for high concurrency)
+5. **Default Credentials**: PostgreSQL user `postgres` with password `password` (use secrets manager in production)
+
+### Data Assumptions
+1. **Account IDs**: Strings (VARCHAR), assumed to be unique within system
+2. **Balances**: Decimal(18,2), non-negative, no currency specification (single currency assumed)
+3. **Transfer Amounts**: Positive decimals only, no partial transactions
+4. **Transaction History**: Immutable (no transaction cancellations or reversals)
+5. **Audit Logs**: Permanent (logs are never deleted)
+
+### Concurrency Assumptions
+1. **Row-Level Locking**: PostgreSQL FOR UPDATE prevents lost updates
+2. **Serializable Isolation**: No dirty reads, phantom reads, or non-repeatable reads
+3. **Single Process**: Application runs as single Go process (not distributed)
+4. **Connection Pool**: Max 25 concurrent connections to PostgreSQL
+5. **No Eventual Consistency**: All reads see committed state (strong consistency)
+
+### Operational Assumptions
+1. **Logging**: All requests and errors logged to stdout as JSON
+2. **Monitoring**: No built-in metrics (integrate Prometheus/Grafana separately)
+3. **Graceful Shutdown**: Server handles SIGINT/SIGTERM for clean exit
+4. **Health Checks**: Basic `/health` endpoint for liveness checks
+5. **No Caching**: Each request queries database directly (add Redis for high-traffic scenarios)
 
 ## Key Features
 
@@ -165,84 +223,183 @@ Response (201):
 ## Prerequisites
 
 ### System Requirements
-- Windows 10/11 or Linux/macOS with PostgreSQL installed
-- Go 1.24.1 or later
-- PostgreSQL 18.x or later
+- **OS**: Windows 10/11, macOS 10.14+, or Linux (Ubuntu 20.04+)
+- **Go**: Version 1.24.1 or later ([Download](https://golang.org/dl/))
+- **PostgreSQL**: Version 18.x or later ([Download](https://www.postgresql.org/download/))
+- **Terminal**: PowerShell (Windows), Bash (macOS/Linux), or equivalent shell
+- **Memory**: Minimum 2GB RAM
+- **Disk**: Minimum 500MB free space
 
-### Installation
+### Installation Steps
 
-1. **PostgreSQL**
-   - Download from [postgresql.org](https://www.postgresql.org/download/)
-   - During installation, set postgres user password (used later)
+#### 1. Install Go
 
-2. **Go**
-   - Download from [golang.org](https://golang.org/dl/)
+**Windows**:
+- Download installer from [golang.org](https://golang.org/dl/)
+- Run installer, accept defaults
+- Verify: `go version`
 
-3. **This Repository**
-   ```powershell
-   git clone <repo-url>
-   cd internal-transfers
-   ```
+**macOS** (Homebrew):
+```bash
+brew install go
+go version
+```
+
+**Linux** (Ubuntu):
+```bash
+sudo apt-get update
+sudo apt-get install golang-go
+go version
+```
+
+#### 2. Install PostgreSQL
+
+**Windows**:
+- Download from [postgresql.org](https://www.postgresql.org/download/windows/)
+- Run installer
+- **Important**: Remember the postgres user password you set during installation
+- Verify: `psql --version`
+- Add to PATH if needed: `$env:PATH += ";C:\Program Files\PostgreSQL\18\bin"`
+
+**macOS** (Homebrew):
+```bash
+brew install postgresql
+brew services start postgresql
+createdb transfers
+psql postgres -c "ALTER USER postgres WITH PASSWORD 'password';"
+```
+
+**Linux** (Ubuntu):
+```bash
+sudo apt-get update
+sudo apt-get install postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'password';"
+```
+
+#### 3. Clone Repository
+
+```powershell
+# Windows/PowerShell
+git clone <your-repo-url>
+cd internal-transfers
+
+# macOS/Linux
+git clone <your-repo-url>
+cd internal-transfers
+```
 
 ## Setup Instructions
 
-### 1. Create Database
+### Step 1: Create Database
 
-Open PowerShell and connect to PostgreSQL:
-
+**Windows** (PowerShell):
 ```powershell
 cd "C:\Program Files\PostgreSQL\18\bin"
 .\psql -U postgres postgres
 ```
 
-In psql prompt, run:
+In the psql prompt, execute:
 ```sql
 CREATE DATABASE transfers;
 ALTER USER postgres WITH PASSWORD 'password';
 \q
 ```
 
-### 2. Run Migrations
+**macOS/Linux** (Bash):
+```bash
+sudo -u postgres psql
 
-```powershell
-cd "C:\Program Files\PostgreSQL\18\bin"
-.\psql -U postgres -h localhost -d transfers -f "C:\internal-transfers\db\migrations\001_init.sql"
+-- In psql:
+CREATE DATABASE transfers;
+ALTER USER postgres WITH PASSWORD 'password';
+\q
 ```
 
-This creates:
-- `accounts` table with balance constraints
-- `transactions` table with amount validation
-- `audit_logs` table with JSONB fields
-- Performance indexes on foreign keys and timestamps
+### Step 2: Run Database Migrations
 
-### 3. Install Dependencies
+This creates all required tables, constraints, and indexes.
 
+**Windows** (PowerShell):
 ```powershell
-cd c:\internal-transfers
+cd "C:\Program Files\PostgreSQL\18\bin"
+.\psql -U postgres -h localhost -d transfers -f "C:\path\to\internal-transfers\db\migrations\001_init.sql"
+```
+
+**macOS/Linux** (Bash):
+```bash
+psql -U postgres -h localhost -d transfers -f ./db/migrations/001_init.sql
+```
+
+Verify tables were created:
+```bash
+psql -U postgres -h localhost -d transfers -c "\dt"
+```
+
+Expected output:
+```
+               List of relations
+ Schema |    Name    | Type  |  Owner
+--------+------------+-------+----------
+ public | accounts   | table | postgres
+ public | audit_logs | table | postgres
+ public | transactions | table | postgres
+(3 rows)
+```
+
+### Step 3: Install Go Dependencies
+
+```bash
+cd internal-transfers
 go mod tidy
 ```
 
 Downloads:
-- `github.com/gorilla/mux` - HTTP routing
-- `github.com/lib/pq` - PostgreSQL driver
-- `github.com/google/uuid` - UUID generation
+- `github.com/gorilla/mux` v1.8.1
+- `github.com/lib/pq` v1.10.9
+- `github.com/google/uuid` v1.6.0
 
-### 4. Start the Server
+### Step 4: Run the Server
 
+**Windows** (PowerShell):
 ```powershell
 cd c:\internal-transfers
 go run ./cmd/server/main.go
 ```
 
+**macOS/Linux** (Bash):
+```bash
+cd internal-transfers
+go run ./cmd/server/main.go
+```
+
 Expected output:
-```
-{"time":"2025-11-30T18:09:19.8676473+05:30","level":"INFO","msg":"connected to database successfully"}
-{"time":"2025-11-30T18:09:19.8696167+05:30","level":"INFO","msg":"starting server on port 8080"}
+```json
+{"time":"2025-11-30T18:09:19.867Z","level":"INFO","msg":"connected to database successfully"}
+{"time":"2025-11-30T18:09:19.870Z","level":"INFO","msg":"starting server on port 8080"}
 ```
 
-Server runs on `http://localhost:8080`
+The server is now listening on `http://localhost:8080`
 
-**Environment Variables** (optional):
+### Step 5: Run Tests (Optional)
+
+**Windows** (PowerShell - New Terminal):
+```powershell
+cd c:\internal-transfers
+& ".\test_simple.ps1"
+```
+
+**macOS/Linux** (Bash - New Terminal):
+```bash
+cd internal-transfers
+bash ./test_simple.ps1
+```
+
+### Environment Variables (Optional)
+
+Override defaults by setting environment variables before starting the server:
+
+**Windows** (PowerShell):
 ```powershell
 $env:DB_HOST = "localhost"
 $env:DB_PORT = "5432"
@@ -253,39 +410,98 @@ $env:DB_SSLMODE = "disable"
 $env:SERVER_PORT = "8080"
 ```
 
+**macOS/Linux** (Bash):
+```bash
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=postgres
+export DB_PASSWORD=password
+export DB_NAME=transfers
+export DB_SSLMODE=disable
+export SERVER_PORT=8080
+```
+
+Then start the server as usual.
+
 ## Running Tests
 
 ### Automated Test Suite
 
-Open a new PowerShell terminal and run:
+The test suite comprehensively validates all API endpoints and error scenarios.
 
+**Windows** (PowerShell):
 ```powershell
-& "c:\internal-transfers\test_simple.ps1"
+# Terminal 1: Start server (if not already running)
+cd c:\internal-transfers
+go run ./cmd/server/main.go
+
+# Terminal 2: Run tests
+cd c:\internal-transfers
+& ".\test_simple.ps1"
 ```
 
-This script executes 11 comprehensive tests:
+**macOS/Linux** (Bash):
+```bash
+# Terminal 1: Start server
+cd internal-transfers
+go run ./cmd/server/main.go
 
-| # | Test | Expected Result |
-|---|------|-----------------|
-| 1 | Health Check | 200 OK |
-| 2 | Create Account 1 (acc001, $1000) | 201 Created |
-| 3 | Create Account 2 (acc002, $500) | 201 Created |
-| 4 | Get Account 1 | 200 OK, balance $1000 |
-| 5 | Get Account 2 | 200 OK, balance $500 |
-| 6 | Transfer $250 (acc001→acc002) | 201 Created |
-| 7 | Verify acc001 balance | 200 OK, balance $750 |
-| 8 | Verify acc002 balance | 200 OK, balance $750 |
-| 9 | Duplicate account (should fail) | 409 Conflict |
-| 10 | Insufficient balance (should fail) | 400 Bad Request |
-| 11 | Same source/dest (should fail) | 400 Bad Request |
+# Terminal 2: Run tests
+cd internal-transfers
+bash ./test_simple.ps1
+```
+
+### Test Coverage
+
+The automated test suite (`test_simple.ps1`) executes 11 comprehensive tests:
+
+| # | Test Case | Endpoint | Expected Status | Purpose |
+|---|-----------|----------|-----------------|---------|
+| 1 | Health Check | GET /health | 200 | Verify server is running |
+| 2 | Create Account 1 | POST /accounts | 201 | Create acc001 with $1000 |
+| 3 | Create Account 2 | POST /accounts | 201 | Create acc002 with $500 |
+| 4 | Get Account 1 | GET /accounts/acc001 | 200 | Retrieve acc001 details |
+| 5 | Get Account 2 | GET /accounts/acc002 | 200 | Retrieve acc002 details |
+| 6 | Transfer Money | POST /transactions | 201 | Transfer $250 (acc001→acc002) |
+| 7 | Verify Source Balance | GET /accounts/acc001 | 200 | Verify balance = $750 |
+| 8 | Verify Dest Balance | GET /accounts/acc002 | 200 | Verify balance = $750 |
+| 9 | Duplicate Account | POST /accounts (duplicate) | 409 | Reject duplicate account ID |
+| 10 | Insufficient Balance | POST /transactions (high amount) | 400 | Reject insufficient funds |
+| 11 | Same Source/Dest | POST /transactions (same account) | 400 | Reject same account transfer |
 
 ### Manual Testing
 
-Use PowerShell to test individual endpoints:
+Use curl or PowerShell to test individual endpoints:
+
+**Create Account**:
+```bash
+curl -X POST http://localhost:8080/accounts \
+  -H "Content-Type: application/json" \
+  -d '{"id":"test001","initial_balance":1000}'
+```
+
+**Get Account**:
+```bash
+curl http://localhost:8080/accounts/test001
+```
+
+**Transfer Money**:
+```bash
+curl -X POST http://localhost:8080/transactions \
+  -H "Content-Type: application/json" \
+  -d '{"source_account_id":"test001","destination_account_id":"acc001","amount":500}'
+```
+
+**Health Check**:
+```bash
+curl http://localhost:8080/health
+```
+
+### PowerShell Examples
 
 ```powershell
 # Create account
-$body = @{id="test001"; initial_balance=500} | ConvertTo-Json
+$body = @{id="ps001"; initial_balance=2000} | ConvertTo-Json
 Invoke-WebRequest -Uri "http://localhost:8080/accounts" `
   -Method Post `
   -Headers @{"Content-Type"="application/json"} `
@@ -293,21 +509,21 @@ Invoke-WebRequest -Uri "http://localhost:8080/accounts" `
   -UseBasicParsing
 
 # Get account
-Invoke-WebRequest -Uri "http://localhost:8080/accounts/test001" `
+Invoke-WebRequest -Uri "http://localhost:8080/accounts/ps001" `
   -Method Get `
   -UseBasicParsing
 
-# Transfer money
-$body = @{source_account_id="test001"; destination_account_id="acc001"; amount=100} | ConvertTo-Json
+# Transfer
+$body = @{
+  source_account_id="ps001"
+  destination_account_id="acc001"
+  amount=100
+} | ConvertTo-Json
+
 Invoke-WebRequest -Uri "http://localhost:8080/transactions" `
   -Method Post `
   -Headers @{"Content-Type"="application/json"} `
   -Body $body `
-  -UseBasicParsing
-
-# Health check
-Invoke-WebRequest -Uri "http://localhost:8080/health" `
-  -Method Get `
   -UseBasicParsing
 ```
 
