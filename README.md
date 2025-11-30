@@ -670,11 +670,3 @@ ab -n 1000 -c 50 -p data.json -T application/json http://localhost:8080/transact
 ## License
 
 MIT
-
-## Contributing
-
-Pull requests welcome. For major changes, open an issue first.
-
-## Support
-
-For issues or questions, open a GitHub issue or contact the maintainers.
