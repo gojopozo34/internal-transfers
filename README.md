@@ -2,8 +2,6 @@
 
 A production-ready Go REST API for managing bank account transfers with ACID compliance and row-level locking to ensure data consistency.
 
-**Repository**: [GitHub Link - Please Update]
-
 ## Quick Start
 
 ```powershell
